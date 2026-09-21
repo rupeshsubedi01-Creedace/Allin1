@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Allin1 ⬇️ — Universal Media Downloader</title>
+<meta name="description" content="Paste a link from YouTube, TikTok, Instagram, Twitter/X, Facebook or Telegram and download video or MP3 with live progress." />
+<meta name="theme-color" content="#6d28d9" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/app/icons/icon.png" />
+<link rel="apple-touch-icon" href="/app/icons/icon.png" />
+<link rel="stylesheet" href="/app/css/styles.css" />
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-header">
+    <div class="brand">
+      <img src="/app/icons/icon.png" alt="Allin1 logo" class="brand-logo" />
+      <div>
+        <h1>Allin1 <span aria-hidden="true">⬇️</span></h1>
+        <p class="tagline">Universal media downloader</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="downloader" role="tab" aria-selected="true">Downloader</button>
+      <button class="tab-btn" data-tab="history" role="tab" aria-selected="false">History</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="downloader" class="tab-panel active">
+      <form id="url-form" class="url-form" autocomplete="off">
+        <div class="input-wrap">
+          <span id="platform-icon" class="platform-icon" title="Detected platform">🔗</span>
+          <input
+            id="url-input"
+            type="url"
+            inputmode="url"
+            placeholder="Paste a link — YouTube, TikTok, Instagram, X, Facebook, Telegram…"
+            aria-label="Media URL"
+            required
+          />
+          <button type="button" id="paste-btn" class="icon-btn" title="Paste from clipboard">📋</button>
+        </div>
+        <div id="url-hint" class="hint"></div>
+        <button type="submit" id="fetch-btn" class="primary-btn">
+          <span class="btn-label">Fetch formats</span>
+          <span class="spinner" hidden></span>
+        </button>
+      </form>
+
+      <div id="error-banner" class="error-banner" hidden></div>
+
+      <section id="media-preview" class="media-preview" hidden>
+        <img id="media-thumb" alt="" />
+        <div class="media-info">
+          <h2 id="media-title"></h2>
+          <p id="media-meta"></p>
+        </div>
+      </section>
+
+      <section id="format-list" class="format-list" hidden>
+        <h3>Choose a format</h3>
+        <div id="video-formats" class="format-group"></div>
+        <h3>Audio</h3>
+        <div id="audio-formats" class="format-group"></div>
+      </section>
+
+      <section id="active-download" class="active-download" hidden>
+        <div class="progress-header">
+          <span id="progress-title">Downloading…</span>
+          <button id="cancel-btn" class="text-btn">Cancel</button>
+        </div>
+        <div class="progress-track">
+          <div id="progress-bar" class="progress-bar" style="width:0%"></div>
+        </div>
+        <div class="progress-stats">
+          <span id="progress-percent">0%</span>
+          <span id="progress-speed"></span>
+          <span id="progress-eta"></span>
+        </div>
+        <div id="download-actions" class="download-actions" hidden>
+          <a id="save-link" class="primary-btn" download>Save file</a>
+          <button id="retry-btn" class="text-btn" hidden>Retry</button>
+        </div>
+      </section>
+    </section>
+
+    <section id="history" class="tab-panel">
+      <div class="history-toolbar">
+        <h2>Download history</h2>
+        <button id="clear-history-btn" class="text-btn danger">Clear all</button>
+      </div>
+      <ul id="history-list" class="history-list"></ul>
+      <p id="history-empty" class="empty-state" hidden>No downloads yet. Fetch a link to get started!</p>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Runs entirely on your own server via yt-dlp + ffmpeg. No data leaves your instance.</p>
+  </footer>
+</div>
+
+<template id="format-btn-template">
+  <button type="button" class="format-btn">
+    <span class="format-label"></span>
+    <span class="format-meta"></span>
+  </button>
+</template>
+
+<template id="history-item-template">
+  <li class="history-item">
+    <div class="history-thumb-wrap">
+      <img class="history-thumb" alt="" />
+      <span class="history-platform"></span>
+    </div>
+    <div class="history-details">
+      <p class="history-title"></p>
+      <p class="history-sub"></p>
+      <p class="history-status"></p>
+    </div>
+    <div class="history-actions">
+      <button class="icon-btn redownload-btn" title="Re-download">🔁</button>
+      <button class="icon-btn delete-btn" title="Delete">🗑️</button>
+    </div>
+  </li>
+</template>
+
+<script src="/app/js/app.js"></script>
+</body>
+</html>
