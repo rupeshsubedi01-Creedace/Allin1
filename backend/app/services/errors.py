@@ -155,6 +155,15 @@ _NETWORK_MARKERS = (
     "failed to establish a new connection",
     "no address associated with hostname",
     "remote end closed connection",
+    # TLS/SSL level failures (yt-dlp wraps these in DownloadError, which is
+    # not an OSError, so they must be matched by message).
+    "tls/ssl connection has been closed",
+    "ssl connection has been closed",
+    "connection aborted",
+    "connection broken",
+    "incomplete read",
+    "eof occurred in violation",
+    "certificate verify failed",
 )
 
 
@@ -188,7 +197,10 @@ def classify_exception(exc: BaseException) -> AppError:
     if isinstance(exc, (URLError, RemoteDisconnected, ConnectionError, OSError)) or any(
         m in lowered for m in _NETWORK_MARKERS
     ):
-        return NetworkError(f"Network error while downloading: {message or 'connection lost'}")
+        # Keep only the first line (trimmed) so users don't see yt-dlp's
+        # multi-line "please report this issue" boilerplate.
+        trimmed = message.splitlines()[0][:200] if message else "connection lost"
+        return NetworkError(f"Network error while downloading: {trimmed}")
 
     # Fall back to a generic extraction error but keep the original (trimmed) message
     # so power-users can still see what yt-dlp reported.

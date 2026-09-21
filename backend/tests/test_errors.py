@@ -34,6 +34,16 @@ def test_classify_network_error():
     assert isinstance(err, NetworkError)
 
 
+def test_classify_tls_error_as_network_error():
+    err = classify_exception(
+        Exception(
+            "ERROR: [youtube] abc: Unable to download API page: "
+            "TLS/SSL connection has been closed (EOF) (_ssl.c:992)"
+        )
+    )
+    assert isinstance(err, NetworkError)
+
+
 def test_classify_ffmpeg_missing():
     err = classify_exception(Exception("ffmpeg not found. Please install"))
     assert isinstance(err, FFmpegMissingError)
