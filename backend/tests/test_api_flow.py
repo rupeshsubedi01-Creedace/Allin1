@@ -38,7 +38,12 @@ def test_extract_local_media(client, media_server):
     assert data["title"]
     assert data["platform_key"] == "generic"
     assert any(f["type"] == "audio" and f["format_id"] == "mp3" for f in data["formats"])
-    assert len(data["formats"]) >= 1
+    # A direct video-file link must also expose the original file itself,
+    # not just the synthetic MP3 option.
+    original = [f for f in data["formats"] if f["type"] == "video"]
+    assert original, f"expected an 'original file' video option, got {data['formats']}"
+    assert original[0]["ext"] == "mp4"
+    assert original[0]["requires_merge"] is False
 
 
 def test_full_download_flow_video(client, media_server):
@@ -46,7 +51,8 @@ def test_full_download_flow_video(client, media_server):
     assert extract_resp.status_code == 200
     data = extract_resp.json()
     video_formats = [f for f in data["formats"] if f["type"] == "video"]
-    chosen = video_formats[0] if video_formats else data["formats"][0]
+    assert video_formats, "direct video URL should expose the original file"
+    chosen = video_formats[0]
 
     download_resp = client.post(
         "/api/download",

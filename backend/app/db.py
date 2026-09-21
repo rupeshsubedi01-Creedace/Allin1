@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS history (
     format_id TEXT,
     media_type TEXT,
     ext TEXT,
+    requires_merge INTEGER NOT NULL DEFAULT 0,
     filepath TEXT,
     filesize INTEGER,
     status TEXT NOT NULL,
@@ -46,6 +47,13 @@ class HistoryStore:
         self._conn.row_factory = sqlite3.Row
         with self._lock:
             self._conn.executescript(_SCHEMA)
+            # Lightweight migration for databases created before the
+            # requires_merge column existed.
+            columns = {row["name"] for row in self._conn.execute("PRAGMA table_info(history)")}
+            if "requires_merge" not in columns:
+                self._conn.execute(
+                    "ALTER TABLE history ADD COLUMN requires_merge INTEGER NOT NULL DEFAULT 0"
+                )
             self._conn.commit()
 
     def close(self) -> None:
@@ -65,6 +73,7 @@ class HistoryStore:
         ext: str | None,
         status: str = "queued",
         job_id: str | None = None,
+        requires_merge: bool = False,
     ) -> dict[str, Any]:
         record_id = job_id or str(uuid.uuid4())
         ts = now_iso()
@@ -78,6 +87,7 @@ class HistoryStore:
             "format_id": format_id,
             "media_type": media_type,
             "ext": ext,
+            "requires_merge": int(bool(requires_merge)),
             "filepath": None,
             "filesize": None,
             "status": status,
@@ -90,12 +100,12 @@ class HistoryStore:
                 """
                 INSERT INTO history (
                     id, url, title, platform_key, platform_label, thumbnail,
-                    format_id, media_type, ext, filepath, filesize, status,
-                    error_message, created_at, updated_at
+                    format_id, media_type, ext, requires_merge, filepath, filesize,
+                    status, error_message, created_at, updated_at
                 ) VALUES (
                     :id, :url, :title, :platform_key, :platform_label, :thumbnail,
-                    :format_id, :media_type, :ext, :filepath, :filesize, :status,
-                    :error_message, :created_at, :updated_at
+                    :format_id, :media_type, :ext, :requires_merge, :filepath, :filesize,
+                    :status, :error_message, :created_at, :updated_at
                 )
                 """,
                 row,

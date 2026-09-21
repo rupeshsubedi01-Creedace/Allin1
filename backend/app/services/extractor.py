@@ -118,38 +118,51 @@ def _mp3_option() -> FormatOption:
     )
 
 
+def _direct_file_options(info: dict[str, Any]) -> list[FormatOption]:
+    """Options for a direct media link (or any extraction without codec data).
+
+    For direct file URLs yt-dlp reports a single format whose ``vcodec`` and
+    ``acodec`` are unknown, so the per-resolution/per-bitrate builders cannot
+    classify it. Fall back to exposing the original file itself, using the
+    top-level info dict.
+    """
+    ext = (info.get("ext") or "").lower()
+    format_id = str(info.get("format_id") or "0")
+    filesize = info.get("filesize") or info.get("filesize_approx")
+    option: FormatOption
+    if ext in _AUDIO_EXT_FALLBACK:
+        option = FormatOption(
+            format_id=format_id,
+            type="audio",
+            label=f"Original audio ({ext.upper()})",
+            ext=ext,
+            abr=info.get("abr"),
+            acodec=info.get("acodec"),
+            filesize=filesize,
+        )
+    else:
+        option = FormatOption(
+            format_id=format_id,
+            type="video",
+            label=f"Original file ({ext.upper()})" if ext else "Original file",
+            ext=ext or "mp4",
+            resolution=info.get("resolution"),
+            fps=info.get("fps"),
+            vcodec=info.get("vcodec"),
+            acodec=info.get("acodec"),
+            filesize=filesize,
+        )
+    return [option, _mp3_option()]
+
+
 def build_formats(info: dict[str, Any]) -> list[FormatOption]:
     raw_formats = info.get("formats") or []
-    if not raw_formats:
-        # Generic / direct-file extraction: yt-dlp returns a single format inline.
-        ext = (info.get("ext") or "").lower()
-        options: list[FormatOption] = []
-        if ext in _AUDIO_EXT_FALLBACK:
-            options.append(
-                FormatOption(
-                    format_id=str(info.get("format_id") or "0"),
-                    type="audio",
-                    label=f"Original audio ({ext.upper()})",
-                    ext=ext or "m4a",
-                    filesize=info.get("filesize") or info.get("filesize_approx"),
-                )
-            )
-        else:
-            options.append(
-                FormatOption(
-                    format_id=str(info.get("format_id") or "0"),
-                    type="video",
-                    label="Original file",
-                    ext=ext or "mp4",
-                    resolution=info.get("resolution"),
-                    filesize=info.get("filesize") or info.get("filesize_approx"),
-                )
-            )
-        options.append(_mp3_option())
-        return options
-
     options = _build_video_formats(raw_formats)
     options.extend(_build_audio_formats(raw_formats))
+    if not options:
+        # Direct-file extraction (or formats with no usable codec metadata):
+        # without this fallback only the synthetic MP3 entry would remain.
+        return _direct_file_options(info)
     options.append(_mp3_option())
     return options
 

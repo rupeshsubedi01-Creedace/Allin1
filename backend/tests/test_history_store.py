@@ -17,6 +17,25 @@ def test_create_and_get(tmp_path):
     assert fetched is not None
     assert fetched["title"] == "Test video"
     assert fetched["status"] == "queued"
+    assert fetched["requires_merge"] == 0
+    store.close()
+
+
+def test_requires_merge_roundtrip(tmp_path):
+    store = HistoryStore(tmp_path / "history.db")
+    row = store.create(
+        url="https://example.com/watch?v=1",
+        title="Merged video",
+        platform_key="youtube",
+        platform_label="YouTube",
+        thumbnail=None,
+        format_id="137",
+        media_type="video",
+        ext="mp4",
+        requires_merge=True,
+    )
+    fetched = store.get(row["id"])
+    assert bool(fetched["requires_merge"]) is True
     store.close()
 
 

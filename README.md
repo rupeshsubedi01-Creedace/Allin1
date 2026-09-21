@@ -79,7 +79,7 @@ of: `invalid_url`, `unsupported_url`, `media_unavailable` (private/removed),
 
 ## Running locally (without Docker)
 
-Requirements: Python 3.12, `ffmpeg` on your `PATH`.
+Requirements: Python 3.11+ (3.12 recommended), `ffmpeg` on your `PATH`.
 
 ```bash
 cd Allin1
@@ -89,6 +89,17 @@ pip install -r requirements.txt -r requirements-dev.txt
 # Run the API + PWA (frontend is served by FastAPI itself)
 uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+If you cannot install `ffmpeg` with your system package manager (e.g. in a
+restricted sandbox), a pip-provided static build works too:
+
+```bash
+pip install imageio-ffmpeg
+ln -s "$(python -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" .venv/bin/ffmpeg
+```
+
+`ffprobe` is optional: yt-dlp automatically falls back to `ffmpeg -i` when
+it is absent.
 
 Open <http://localhost:8000> in your browser (or on your phone via your
 machine's LAN IP) — it's an installable PWA, so you can "Add to Home

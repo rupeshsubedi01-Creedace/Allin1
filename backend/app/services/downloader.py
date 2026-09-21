@@ -125,6 +125,7 @@ class DownloadManager:
             format_id=format_id,
             media_type=media_type,
             ext="mp3" if format_id == "mp3" else ext,
+            requires_merge=requires_merge,
             status="queued",
         )
 

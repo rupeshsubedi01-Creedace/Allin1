@@ -75,7 +75,7 @@ def redownload(
         format_id=record["format_id"] or "mp3",
         media_type=record["media_type"] or "audio",
         ext=record["ext"] or "mp4",
-        requires_merge=False,
+        requires_merge=bool(record.get("requires_merge")),
         title=record["title"],
         thumbnail=record["thumbnail"],
         platform_key=record["platform_key"],

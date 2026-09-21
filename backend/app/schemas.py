@@ -66,6 +66,7 @@ class HistoryItem(BaseModel):
     format_id: str | None
     media_type: str | None
     ext: str | None
+    requires_merge: bool = False
     filepath: str | None
     filesize: int | None
     status: str
