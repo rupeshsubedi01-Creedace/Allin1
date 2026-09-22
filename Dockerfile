@@ -14,13 +14,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ backend/
 COPY frontend/ frontend/
+COPY scripts/ scripts/
 
 ENV ALLIN1_DATA_DIR=/app/data
-RUN mkdir -p /app/data
+ENV PORT=8000
+ENV WEB_CONCURRENCY=1
 
+RUN mkdir -p /app/data && chmod +x /app/scripts/start.sh
+
+# 8000 is the default; platforms that inject PORT (Render, Railway, …) will
+# override it and scripts/start.sh picks the value up automatically.
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -fsS http://localhost:8000/api/health || exit 1
+    CMD curl -fsS "http://localhost:${PORT}/api/health" || exit 1
 
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["bash", "scripts/start.sh"]

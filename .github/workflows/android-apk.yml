@@ -1,0 +1,115 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android-apk.yml"
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/android-apk.yml"
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: "Optional: default Allin1 server URL baked into the APK"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # GitHub's ubuntu runners already ship a full Android SDK, so we use it
+      # directly instead of pulling in a third-party setup action.
+      - name: Ensure Android SDK components
+        run: |
+          set -euo pipefail
+
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "SDK root: $SDK_ROOT"
+          ls "$SDK_ROOT" || true
+
+          if command -v sdkmanager > /dev/null 2>&1; then
+            SDKMGR="$(command -v sdkmanager)"
+          else
+            SDKMGR="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          echo "sdkmanager: $SDKMGR"
+          "$SDKMGR" --version
+
+          yes | "$SDKMGR" --licenses > /dev/null 2>&1 || true
+          "$SDKMGR" --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+
+          echo "--- installed platforms ---"
+          ls "$SDK_ROOT/platforms" || true
+          echo "--- installed build-tools ---"
+          ls "$SDK_ROOT/build-tools" || true
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.2"
+
+      - name: Build APK
+        working-directory: android
+        env:
+          ALLIN1_SERVER_URL: ${{ github.event.inputs.server_url }}
+        run: |
+          set -euo pipefail
+          if [ -n "${ALLIN1_SERVER_URL:-}" ]; then
+            gradle assembleDebug -Pallin1ServerUrl="$ALLIN1_SERVER_URL" --no-daemon --stacktrace
+          else
+            gradle assembleDebug --no-daemon --stacktrace
+          fi
+
+      - name: Collect APK
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/allin1.apk
+          ls -lh out/
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: allin1-apk
+          path: out/allin1.apk
+          if-no-files-found: error
+
+      - name: Publish APK to the "apk-latest" release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: Allin1 for Android (latest build)
+          make_latest: true
+          body: |
+            Sideload-ready build of the Allin1 Android app.
+
+            **Direct download:** tap `allin1.apk` under Assets below.
+
+            **Install:** open the downloaded file and allow "Install unknown apps"
+            for your browser or file manager when Android asks.
+
+            The app is a native shell around your own Allin1 server. On first
+            launch it asks for the server address, e.g. `https://your-app.onrender.com`.
+          files: out/allin1.apk
