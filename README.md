@@ -161,6 +161,12 @@ release you would add your own signing config to `android/app/build.gradle.kts`.
 
 ## Deployment
 
+> **Step-by-step hosting walkthrough:** see **[DEPLOY.md](DEPLOY.md)** — it
+> covers Render, Fly.io, a VPS and running it on your own PC, and explains an
+> important caveat: **YouTube often blocks datacenter IP ranges**, so a cloud
+> host may hit "Sign in to confirm you're not a bot" where a home machine
+> would not.
+
 The Docker image is self-contained (Python 3.12 + ffmpeg + all
 dependencies) and listens on port `8000` with a `GET /api/health`
 healthcheck baked in, so it can be deployed as-is to any container
