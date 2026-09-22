@@ -26,6 +26,7 @@ class Settings:
     max_history_items: int = 500
     socket_timeout: int = 20
     extraction_timeout: int = 45
+    cors_origins: tuple[str, ...] = ("*",)
 
     @classmethod
     def create(cls, data_dir: str | Path | None = None) -> Settings:
@@ -43,7 +44,22 @@ class Settings:
             downloads_dir=downloads_dir,
             db_path=db_path,
             ffmpeg_path=ffmpeg_path,
+            cors_origins=parse_cors_origins(os.environ.get("ALLIN1_CORS_ORIGINS")),
         )
+
+
+def parse_cors_origins(raw: str | None) -> tuple[str, ...]:
+    """Turn ``ALLIN1_CORS_ORIGINS`` into a tuple of allowed origins.
+
+    Unset/empty falls back to ``*``. The API is public, holds no credentials
+    and is consumed by the bundled PWA (same origin) and the Android shell, so
+    a wildcard is a safe default; set an explicit comma-separated allowlist if
+    you front it with other web clients.
+    """
+    if raw is None or not raw.strip():
+        return ("*",)
+    origins = tuple(part.strip() for part in raw.split(",") if part.strip())
+    return origins or ("*",)
 
 
 def ffmpeg_is_available() -> bool:

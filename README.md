@@ -39,7 +39,12 @@ Allin1/
 ├── Dockerfile
 ├── requirements.txt
 ├── requirements-dev.txt
-└── .github/workflows/build-and-run.yml
+├── android/                  # native Android shell (Kotlin + WebView) for the API
+├── render.yaml / fly.toml    # one-command deploy configs
+├── Procfile                  # Railway / Heroku-style entrypoint
+└── .github/workflows/
+    ├── build-and-run.yml     # lint + tests + server bundle artifact
+    └── android-apk.yml       # compiles and publishes the installable APK
 ```
 
 ## How it works
@@ -108,6 +113,52 @@ docker run --rm -p 8000:8000 -v allin1-data:/app/data allin1
 
 Then open <http://localhost:8000>.
 
+## Android app
+
+`android/` contains a small native Android shell that turns a hosted Allin1
+server into an installable app. It is **not** a second implementation of the
+downloader — the server still does all the work with yt-dlp + ffmpeg. The app
+renders the bundled PWA in a WebView and then hands finished media to Android's
+`DownloadManager`, so files land in your device's **Downloads** folder instead
+of being trapped in browser storage.
+
+- Written in Kotlin against the plain Android View system (no Compose, no
+  Capacitor) — the whole app is one `Activity` plus resources.
+- On first launch it asks for your server address. Bare LAN/loopback addresses
+  default to `http://`, everything else to `https://`. The address is stored,
+  and can be changed any time from the overflow menu.
+- Links to other hosts open in the normal browser; the back button walks
+  WebView history.
+- A default server URL can be baked in at build time:
+  `gradle assembleDebug -Pallin1ServerUrl=https://your-app.onrender.com`
+
+### Getting the APK
+
+You do **not** need Android Studio or any local toolchain. The
+[`Build Android APK`](.github/workflows/android-apk.yml) workflow compiles it on
+GitHub's runners and publishes the result to the **`apk-latest`** release:
+
+```
+https://github.com/rupeshsubedi001-Creedace/Allin1/releases/latest/download/allin1.apk
+```
+
+(replace the owner/repo with your own). Trigger it from **Actions → Build
+Android APK → Run workflow**; it also runs automatically on changes to
+`android/`. Every run uploads `allin1-apk` as a downloadable build artifact as
+well.
+
+### Installing it
+
+1. Open the APK link on your phone and download it.
+2. Tap the downloaded file. Android will ask you to allow *"Install unknown
+   apps"* for your browser or file manager — allow it, then confirm.
+3. Open **Allin1** and enter your server address (skip this if you baked one in
+   with `-Pallin1ServerUrl`).
+
+The APK is a **debug build**: it is signed with the standard debug key, which
+is fine for sideloading but cannot be uploaded to Google Play. For a Play Store
+release you would add your own signing config to `android/app/build.gradle.kts`.
+
 ## Deployment
 
 The Docker image is self-contained (Python 3.12 + ffmpeg + all
@@ -129,6 +180,34 @@ proxy does **not** buffer Server-Sent Events (e.g. with nginx, disable
 buffering for the `/api/download/*/events` location — the app already sends
 `X-Accel-Buffering: no`).
 
+### One-command deploy configs in this repo
+
+| File | Platform | How |
+| --- | --- | --- |
+| `render.yaml` | Render | **New + → Blueprint**, pick this repo. Free plan works (no persistent disk, so history resets on deploy). |
+| `fly.toml` | Fly.io | `fly launch --copy-config --no-deploy` (change `app` to a unique name), then `fly volumes create allin1_data --size 1`, then `fly deploy`. |
+| `Dockerfile` | Any container host | `docker build -t allin1 . && docker run -p 8000:8000 -v allin1-data:/app/data allin1` |
+| `Procfile` | Railway / Heroku-style | Detects `web:` and runs `scripts/start.sh`. |
+
+`scripts/start.sh` is the single production entrypoint: it honours the `$PORT`
+variable that these platforms inject, binds `0.0.0.0`, and enables proxy
+headers so HTTPS redirects and health checks behave behind their load
+balancers.
+
+Configuration is environment-driven (see `.env.example`):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ALLIN1_DATA_DIR` | `<repo>/data` | Where the SQLite history DB and downloaded files live. Point this at your persistent volume. |
+| `PORT` | `8000` | Bind port. |
+| `ALLIN1_CORS_ORIGINS` | `*` | Comma-separated browser origin allowlist for the API. The PWA and the Android app are same-origin, so they never need this. |
+| `FFMPEG_BINARY` | `ffmpeg` | Override the ffmpeg binary path. |
+| `WEB_CONCURRENCY` | `1` | Keep at 1 — job state lives in-process, so extra workers would not share it. |
+
+> **Put this behind HTTPS.** The app works over plain HTTP, but `yt-dlp` needs
+> outbound internet from the server, and running it on an open port invites
+> abuse. Render, Fly and Railway all give you TLS for free.
+
 ## Testing & CI
 
 ```bash
@@ -149,6 +228,14 @@ GitHub Actions (`.github/workflows/build-and-run.yml`) runs on every push
 and pull request to `main`: it sets up Python 3.12, installs `ffmpeg` +
 dependencies, runs `ruff` and `pytest`, executes `scripts/build.sh`, and
 uploads the resulting `dist/allin1-app.tar.gz` as a build artifact.
+
+> **Note:** `dist/allin1-app.tar.gz` is a *server bundle* — source code, the
+> `Dockerfile`, and helper scripts. It is meant to be unpacked on a machine or
+> container that has Python and ffmpeg, **not installed on a phone**. Android
+> file managers will refuse to open a `.tar.gz` and show a generic
+> "Extraction error". To get something you can actually install on a phone,
+> use the APK produced by `android-apk.yml` (see
+> [Android app](#android-app)).
 
 ## API reference (summary)
 

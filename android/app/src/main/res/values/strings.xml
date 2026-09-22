@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Allin1</string>
+    <string name="action_reload">Reload</string>
+    <string name="action_change_server">Change server</string>
+    <string name="action_open_browser">Open in browser</string>
+    <string name="action_about">About</string>
+
+    <string name="setup_title">Connect to your Allin1 server</string>
+    <string name="setup_body">Allin1 runs on a server (or your own computer). Enter the address of your Allin1 server below — for example https://allin1.onrender.com — or http://192.168.1.10:8000 if you are running it on your own network.</string>
+    <string name="setup_hint">https://your-allin1-server</string>
+    <string name="setup_connect">Connect</string>
+    <string name="setup_invalid">That does not look like a valid address. Try again.</string>
+
+    <string name="error_title">Cannot reach the server</string>
+    <string name="error_body">Allin1 could not load. Check that your server is running and that this device has an internet connection.</string>
+    <string name="error_retry">Try again</string>
+    <string name="error_change_server">Change server</string>
+
+    <string name="download_started">Downloading %1$s…</string>
+    <string name="download_description">Saved to your Downloads folder</string>
+    <string name="download_unsupported">This download type is not supported in the app. Open it in your browser instead.</string>
+    <string name="permission_needed">Allin1 needs storage permission to save this file.</string>
+
+    <string name="about_title">About Allin1</string>
+    <string name="about_body">Allin1 is a universal media downloader. This app is a native Android shell around your own Allin1 server: the server does the extracting and downloading with yt-dlp + ffmpeg, and finished files are saved to your Downloads folder by Android.</string>
+    <string name="about_ok">OK</string>
+</resources>
