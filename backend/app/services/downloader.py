@@ -6,6 +6,7 @@ import json
 import queue
 import threading
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,37 @@ import yt_dlp
 
 from ..config import Settings
 from ..db import HistoryStore
-from . import errors, platform_detect
+from . import errors, platform_detect, security
+
+
+class CapturingLogger:
+    """yt-dlp logger that remembers what happened instead of printing it.
+
+    Handing yt-dlp a custom logger means its user-facing chatter goes to
+    ``debug()`` rather than stdout, which keeps the server log clean. Keeping
+    the last few lines lets us explain outcomes yt-dlp reports only in passing —
+    most importantly the "File is larger than max-filesize" notice, which it
+    prints and then quietly skips the download for.
+    """
+
+    def __init__(self, maxlen: int = 60):
+        self.lines: deque[str] = deque(maxlen=maxlen)
+
+    def _record(self, message: Any) -> None:
+        text = str(message).replace("\r", " ").strip()
+        if text:
+            self.lines.append(text)
+
+    debug = _record
+    info = _record
+    warning = _record
+    error = _record
+
+    def __call__(self, message: Any) -> None:  # yt-dlp also accepts callables
+        self._record(message)
+
+    def text(self) -> str:
+        return " | ".join(self.lines)
 
 
 @dataclass
@@ -34,6 +65,7 @@ class Job:
     total_bytes: int | None = None
     filepath: str | None = None
     error: dict[str, str] | None = None
+    diagnostics: CapturingLogger = field(default_factory=CapturingLogger)
     cancel_event: threading.Event = field(default_factory=threading.Event)
     events: queue.Queue[dict[str, Any]] = field(default_factory=queue.Queue)
     thread: threading.Thread | None = None
@@ -102,6 +134,10 @@ class DownloadManager:
     ) -> str:
         if not platform_detect.is_valid_url(url):
             raise errors.InvalidURLError()
+
+        # Re-checked here (not just at extract time) because this is the call
+        # that actually opens the outbound connection.
+        security.assert_url_allowed(url, allow_private=self.settings.allow_private_urls)
 
         job_id = str(uuid.uuid4())
         job = Job(
@@ -185,9 +221,15 @@ class DownloadManager:
             "postprocessor_hooks": [lambda d: self._postprocessor_hook(job, d)],
             "retries": 3,
             "fragment_retries": 3,
+            "logger": job.diagnostics,
         }
         if self.settings.ffmpeg_path:
             opts["ffmpeg_location"] = self.settings.ffmpeg_path
+
+        # Ask yt-dlp to refuse oversized media up front (skips the download
+        # entirely when the size is known from the source).
+        if self.settings.max_download_bytes:
+            opts["max_filesize"] = self.settings.max_download_bytes
 
         if job.media_type == "audio":
             opts["format"] = "bestaudio/best"
@@ -241,7 +283,20 @@ class DownloadManager:
 
         output_file = self._locate_output_file(job)
         if output_file is None or not output_file.exists():
-            app_error = errors.ExtractionError("Download finished but the output file could not be found.")
+            captured = job.diagnostics.text()
+            if errors.is_too_large_message(captured):
+                # yt-dlp refuses oversized media without raising: it logs the
+                # notice and skips the download, leaving no file behind.
+                app_error = errors.FileTooLargeError(
+                    "This media is bigger than the server's "
+                    f"{_human_size(self.settings.max_download_bytes or 0)} download limit."
+                )
+            else:
+                app_error = errors.ExtractionError(
+                    "Download finished but the output file could not be found."
+                )
+                if captured:
+                    app_error.message = f"{app_error.message} (source said: {captured[:200]})"
             job.status = "error"
             job.error = app_error.to_dict()
             self.history.update(job.id, status="error", error_message=app_error.message)
@@ -249,6 +304,22 @@ class DownloadManager:
             return
 
         filesize = output_file.stat().st_size
+
+        # Backstop for streams whose size is only known after the fact
+        # (HLS/DASH) and for post-processing output that grew past the limit.
+        limit = self.settings.max_download_bytes
+        if limit and filesize > limit:
+            app_error = errors.FileTooLargeError(
+                f"This media is {_human_size(filesize)}, which is over the server's "
+                f"{_human_size(limit)} download limit."
+            )
+            job.status = "error"
+            job.error = app_error.to_dict()
+            self.history.update(job.id, status="error", error_message=app_error.message)
+            self._push(job)
+            self._cleanup_partial(job)
+            return
+
         job.status = "completed"
         job.percent = 100.0
         job.filepath = str(output_file)
@@ -294,3 +365,12 @@ class DownloadManager:
 
 def _sse_format(payload: dict[str, Any]) -> str:
     return f"data: {json.dumps(payload)}\n\n"
+
+
+def _human_size(num_bytes: int) -> str:
+    value = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024 or unit == "GB":
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} GB"

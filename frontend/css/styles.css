@@ -408,3 +408,96 @@ html, body {
   .app-header { flex-direction: row; justify-content: space-between; align-items: center; }
   .tabs { width: 280px; }
 }
+
+/* ---------------------------------------------------------------- API key */
+.key-btn {
+  margin-left: auto;
+  background: var(--bg-card-2);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.key-btn:hover { border-color: var(--accent); }
+
+.key-btn.key-active { border-color: var(--success); }
+
+.auth-dialog {
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  max-width: 420px;
+  width: calc(100% - 2rem);
+  padding: 1.25rem;
+}
+
+.auth-dialog::backdrop { background: rgba(8, 5, 18, 0.72); }
+
+.auth-dialog h2 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+
+.auth-hint {
+  margin: 0 0 0.85rem;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.auth-hint code {
+  background: var(--bg-card-2);
+  padding: 0.1rem 0.3rem;
+  border-radius: 5px;
+  font-size: 0.75rem;
+}
+
+.auth-dialog input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  background: var(--bg-card-2);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.auth-dialog input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.auth-error {
+  margin: 0.6rem 0 0;
+  color: var(--danger);
+  font-size: 0.78rem;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.auth-actions > button { flex: 1 1 auto; }
+
+.ghost-btn {
+  background: transparent;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  color: var(--text-dim);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ghost-btn:hover { color: var(--text); border-color: var(--accent); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

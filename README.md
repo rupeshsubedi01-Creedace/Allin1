@@ -207,12 +207,78 @@ Configuration is environment-driven (see `.env.example`):
 | `ALLIN1_DATA_DIR` | `<repo>/data` | Where the SQLite history DB and downloaded files live. Point this at your persistent volume. |
 | `PORT` | `8000` | Bind port. |
 | `ALLIN1_CORS_ORIGINS` | `*` | Comma-separated browser origin allowlist for the API. The PWA and the Android app are same-origin, so they never need this. |
+| `ALLIN1_API_KEY` | *(unset)* | **Set this on any host other people can reach.** When set, every API route needs the key (see [Authentication](#authentication-api-key)). Minimum 16 characters. |
+| `ALLIN1_MAX_DOWNLOAD_MB` | *(unlimited)* | Refuse media larger than this. `2048` is a sane public-network value. |
+| `ALLIN1_FILE_TTL_HOURS` | *(keep forever)* | Delete downloaded files older than this. `24` is a sane public-network value. |
+| `ALLIN1_ALLOW_PRIVATE_URLS` | `false` | **Testing only.** Disables the SSRF guard that refuses to fetch private/loopback addresses. Never enable it on a public host. |
 | `FFMPEG_BINARY` | `ffmpeg` | Override the ffmpeg binary path. |
 | `WEB_CONCURRENCY` | `1` | Keep at 1 — job state lives in-process, so extra workers would not share it. |
 
 > **Put this behind HTTPS.** The app works over plain HTTP, but `yt-dlp` needs
 > outbound internet from the server, and running it on an open port invites
 > abuse. Render, Fly and Railway all give you TLS for free.
+
+## Securing a public deployment
+
+The API takes a URL from the caller and makes the **server** fetch it. That is
+fine on your laptop and dangerous on a public URL, so three guards ship with
+the app. Turn all three on when you host it somewhere reachable:
+
+```bash
+# 1. Require an API key (the PWA asks for it on first load)
+export ALLIN1_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+
+# 2. Cap disk usage per download and expire old files automatically
+export ALLIN1_MAX_DOWNLOAD_MB=2048
+export ALLIN1_FILE_TTL_HOURS=24
+```
+
+3. **The SSRF guard is always on** (it needs no configuration). Links that
+   point at loopback, private, link-local or cloud-metadata addresses —
+   `http://127.0.0.1:8000/api/health`, `http://169.254.169.254/…`,
+   `http://10.0.0.5/`, `http://router.local/`, `file:///etc/passwd` — are
+   refused with `403 blocked_url`, both at extract time and again when the
+   download actually starts.
+
+### Authentication (API key)
+
+`ALLIN1_API_KEY` is optional. Unset (the default) means the API is open, which
+is what you want for personal use on `localhost` or a home LAN. When it is set:
+
+* every `/api/*` route **except** `GET /api/health` requires the key;
+* `/docs`, `/redoc` and `/openapi.json` are protected too;
+* the static PWA (`/`, `/app/*`, `/manifest.json`, `/service-worker.js`) stays
+  public, because the key dialog lives in that page;
+* the key may be sent as `X-API-Key: …`, `Authorization: Bearer …`, or
+  `?key=…`. The query form exists only because `EventSource` (SSE progress)
+  and plain `<a download>` links cannot set headers — prefer the header forms
+  from scripts, since URLs can end up in access logs.
+
+In the browser and the Android app nothing needs to be configured by hand: on
+first load the PWA sees `auth_required: true`, shows the key dialog, and stores
+what you paste in `localStorage` for that origin. Use **Forget key** in the
+dialog to sign out.
+
+```bash
+curl -H "X-API-Key: $ALLIN1_API_KEY" https://your-app.example.com/api/history
+curl -X POST -H "X-API-Key: $ALLIN1_API_KEY" -H 'Content-Type: application/json' \
+     -d '{"url":"https://www.youtube.com/watch?v=..."}' \
+     https://your-app.example.com/api/extract
+```
+
+Requests without a valid key get `401 {"error_code": "unauthorized"}`. The key
+is compared in constant time and is never logged or written to disk.
+
+### Still your job
+
+* **Front the app with HTTPS** (every host below does this for free).
+* **Keep the data volume small.** TTL cleanup runs every 15 minutes; without
+  `ALLIN1_FILE_TTL_HOURS` nothing is ever deleted.
+* **Prefer a VPN/Tailscale or Cloudflare Access** over a bare public URL when
+  it is just you — belt and braces alongside the API key.
+* `scripts/start.sh` runs uvicorn with `--forwarded-allow-ips '*'`, which
+  trusts `X-Forwarded-*` headers. That is correct behind Render/Fly/Railway but
+  wrong if the port is exposed directly, so let the platform terminate traffic.
 
 ## Testing & CI
 
@@ -258,6 +324,9 @@ uploads the resulting `dist/allin1-app.tar.gz` as a build artifact.
 | `DELETE /api/history/{id}`                  | Delete one history entry (+ its file)          |
 | `DELETE /api/history`                       | Clear all history (+ all files)                |
 
+All routes except `GET /api/health` require `X-API-Key: <ALLIN1_API_KEY>` (or
+`Authorization: Bearer …`, or `?key=…`) when `ALLIN1_API_KEY` is set.
+
 ## Notes & limitations
 
 - Some platforms (Instagram, private Facebook groups, age-restricted
@@ -267,3 +336,7 @@ uploads the resulting `dist/allin1-app.tar.gz` as a build artifact.
 - Legal note: only download media you have the right to download (your own
   content, permissively licensed content, or content you have permission to
   save for personal/offline use).
+- The SSRF guard checks the hostname when a request is made. A DNS name that
+  resolves to a public address for the check and a private one moments later
+  (DNS rebinding) is not fully covered by any URL-allowlist approach; the API
+  key plus HTTPS is what keeps strangers away from the endpoint in practice.

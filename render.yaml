@@ -20,3 +20,13 @@ services:
         value: "*"
       - key: WEB_CONCURRENCY
         value: "1"
+      # Render generates a strong key on first deploy: open the service in the
+      # dashboard -> Environment -> copy ALLIN1_API_KEY, then paste it into the
+      # app's key dialog. Your public URL is not usable without it.
+      - key: ALLIN1_API_KEY
+        generateValue: true
+      # Keep one visitor's download from filling the disk, and clean up after a day.
+      - key: ALLIN1_MAX_DOWNLOAD_MB
+        value: "2048"
+      - key: ALLIN1_FILE_TTL_HOURS
+        value: "24"

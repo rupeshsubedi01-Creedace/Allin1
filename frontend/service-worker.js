@@ -1,8 +1,9 @@
-const CACHE_NAME = "allin1-shell-v1";
+const CACHE_NAME = "allin1-shell-v2";
 const SHELL_ASSETS = [
   "/",
   "/manifest.json",
   "/app/css/styles.css",
+  "/app/js/auth.js",
   "/app/js/app.js",
   "/app/icons/icon.png",
 ];

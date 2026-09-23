@@ -65,7 +65,11 @@ def media_server(sample_video):
 
 
 @pytest.fixture()
-def app_instance(tmp_path):
+def app_instance(tmp_path, monkeypatch):
+    # The offline suite serves its sample media from 127.0.0.1, which the SSRF
+    # guard blocks by default (correctly!). Allow private URLs for these tests.
+    monkeypatch.setenv("ALLIN1_ALLOW_PRIVATE_URLS", "true")
+    monkeypatch.delenv("ALLIN1_API_KEY", raising=False)
     application = create_app(data_dir=tmp_path / "data")
     yield application
     application.state.history_store.close()
@@ -75,3 +79,16 @@ def app_instance(tmp_path):
 def client(app_instance):
     with TestClient(app_instance) as test_client:
         yield test_client
+
+
+@pytest.fixture()
+def strict_client(tmp_path, monkeypatch):
+    """Client whose app keeps the default, hardened URL policy (no private IPs)."""
+    monkeypatch.delenv("ALLIN1_ALLOW_PRIVATE_URLS", raising=False)
+    monkeypatch.delenv("ALLIN1_API_KEY", raising=False)
+    application = create_app(data_dir=tmp_path / "strict-data")
+    try:
+        with TestClient(application) as test_client:
+            yield test_client
+    finally:
+        application.state.history_store.close()

@@ -8,7 +8,7 @@ import yt_dlp
 
 from ..config import Settings
 from ..schemas import ExtractResponse, FormatOption
-from . import errors, platform_detect
+from . import errors, platform_detect, security
 
 _VIDEO_EXT_FALLBACK = {"mp4", "webm", "mkv", "mov", "flv", "avi"}
 _AUDIO_EXT_FALLBACK = {"mp3", "m4a", "aac", "wav", "flac", "ogg", "opus"}
@@ -157,6 +157,10 @@ def build_formats(info: dict[str, Any]) -> list[FormatOption]:
 def extract_info(url: str, settings: Settings) -> ExtractResponse:
     if not platform_detect.is_valid_url(url):
         raise errors.InvalidURLError()
+
+    # The server does the fetching, so never let a caller point it at itself or
+    # at an internal network (see services/security.py).
+    security.assert_url_allowed(url, allow_private=settings.allow_private_urls)
 
     platform = platform_detect.detect_platform(url)
     opts = _base_ydl_opts(settings)

@@ -297,7 +297,8 @@
 
   function subscribeToJob(jobId) {
     if (currentEventSource) currentEventSource.close();
-    const source = new EventSource(API.events(jobId));
+    // EventSource cannot send headers, so the API key rides along as ?key=.
+    const source = new EventSource(API.events(jobId) + (window.Allin1Auth?.query() || ""));
     currentEventSource = source;
 
     source.onmessage = (event) => {
@@ -332,7 +333,8 @@
       progressPercent.textContent = "100%";
       cancelBtn.hidden = true;
       downloadActions.hidden = false;
-      saveLink.href = API.file(payload.job_id);
+      // Plain <a download> links cannot send headers either.
+      saveLink.href = API.file(payload.job_id) + (window.Allin1Auth?.query() || "");
       retryBtn.hidden = true;
     } else if (payload.status === "canceled") {
       progressTitle.textContent = "Canceled";

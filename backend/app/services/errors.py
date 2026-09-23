@@ -28,10 +28,28 @@ class AppError(Exception):
         return {"error_code": self.code, "message": self.message}
 
 
+class UnauthorizedError(AppError):
+    code = "unauthorized"
+    status_code = 401
+    default_message = "An API key is required. Open the key dialog and enter your ALLIN1_API_KEY."
+
+
 class InvalidURLError(AppError):
     code = "invalid_url"
     status_code = 400
     default_message = "That link doesn't look like a valid URL. Please check it and try again."
+
+
+class BlockedURLError(AppError):
+    code = "blocked_url"
+    status_code = 403
+    default_message = "This link points at a local or internal address and cannot be fetched."
+
+
+class FileTooLargeError(AppError):
+    code = "file_too_large"
+    status_code = 413
+    default_message = "This file is larger than the configured download limit."
 
 
 class UnsupportedURLError(AppError):
@@ -146,6 +164,13 @@ _FFMPEG_MARKERS = (
 
 _TIMEOUT_MARKERS = ("timed out", "timeout")
 
+_TOO_LARGE_MARKERS = (
+    "larger than max-filesize",
+    "max-filesize",
+    "file is larger than",
+    "exceeds the maximum file size",
+)
+
 _NETWORK_MARKERS = (
     "network is unreachable",
     "name or service not known",
@@ -156,6 +181,12 @@ _NETWORK_MARKERS = (
     "no address associated with hostname",
     "remote end closed connection",
 )
+
+
+def is_too_large_message(text: str) -> bool:
+    """True when yt-dlp's output says the media exceeded ``max_filesize``."""
+    lowered = text.lower()
+    return any(marker in lowered for marker in _TOO_LARGE_MARKERS)
 
 
 def classify_exception(exc: BaseException) -> AppError:
@@ -169,6 +200,11 @@ def classify_exception(exc: BaseException) -> AppError:
 
     if isinstance(exc, (socket.timeout, TimeoutError)) or any(m in lowered for m in _TIMEOUT_MARKERS):
         return DownloadTimeoutError(f"Timed out while contacting the source site: {message or 'no response'}")
+
+    if is_too_large_message(message):
+        return FileTooLargeError(
+            "This media is bigger than the server's configured download limit."
+        )
 
     if any(m in lowered for m in _FFMPEG_MARKERS):
         return FFmpegMissingError()

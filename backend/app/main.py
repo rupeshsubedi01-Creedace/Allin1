@@ -13,18 +13,26 @@ from fastapi.staticfiles import StaticFiles
 from .api import routes_download, routes_extract, routes_health, routes_history
 from .config import FRONTEND_DIR, Settings
 from .db import HistoryStore
+from .services.auth import ApiKeyMiddleware
 from .services.downloader import DownloadManager
 from .services.errors import AppError
+from .services.retention import RetentionJanitor, purge_expired
 
 
 def create_app(data_dir: str | Path | None = None) -> FastAPI:
     settings = Settings.create(data_dir=data_dir)
     history_store = HistoryStore(settings.db_path)
     download_manager = DownloadManager(settings=settings, history=history_store)
+    janitor = RetentionJanitor(settings=settings, history=history_store)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        if settings.file_ttl_hours:
+            # Clear anything that expired while the app was down.
+            purge_expired(settings, history_store)
+            janitor.start()
         yield
+        janitor.stop()
         history_store.close()
 
     app = FastAPI(
@@ -37,6 +45,7 @@ def create_app(data_dir: str | Path | None = None) -> FastAPI:
     app.state.history_store = history_store
     app.state.download_manager = download_manager
 
+    app.add_middleware(ApiKeyMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
